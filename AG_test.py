@@ -9,14 +9,16 @@ import heapq # For selecting n best
 # TODO instead of using index, use x,y directly?
 
 n_stops = 5
-max_shelves_per_stop = 5
+max_shelves_per_stop = 8
 n_row = 16
 n_col = 16
 pop_size = 100
-n_generation = 5
+mut_prob = 0.1
+n_generation = 100
 n_tournament = 3
 budget_ground = 200
-budget_aerial = 100
+budget_aerial = 60
+region_near = 4
 
 # Transforming graph from nx to dictionary
 def graph_to_dict(grafo_org):
@@ -136,7 +138,7 @@ individual_ex2 = {
 
 # Uni. randomly decides shelves to be visited - several ways to do it
 # This one picks uni randomly, another way is picking uni rand from the neighbors
-def rd_shelves(indexes_shelves, near_nodes,):
+def rd_shelves(near_nodes):
     if len(near_nodes) >= max_shelves_per_stop:
         return rd.sample(near_nodes,max_shelves_per_stop)
     else:
@@ -147,7 +149,7 @@ def random_ind(indexes_shelves, indexes_aisle, near_nodes):
     stops = rd.sample(indexes_aisle,n_stops)
     shelves = []
     for i in range(n_stops):
-        shelves.append(rd_shelves(indexes_shelves, near_nodes[stops[i]]))
+        shelves.append(rd_shelves(near_nodes[stops[i]]))
 
     individual = {
         "stops_ugv": stops,
@@ -158,6 +160,7 @@ def random_ind(indexes_shelves, indexes_aisle, near_nodes):
     return individual
 
 # Fitness Calculation (number of non repeated shelves visited) NOT REWARD
+# TODO correct if shelf is visited one more time ---> already orrected?
 # TODO use reward instead of counting unique shelves
 # TODO is there a faster way to do it?
 def fitness(individual, graph_dict, graph_ground, graph_aerial):    
@@ -254,24 +257,30 @@ def crossover_uniform(parents):
 
     return offspring1, offspring2
 
+
 # Uniform mutation - changes stops and shelves uni rand
 #TODO Need to pass indexes_aisle and indexes_shelves or can we declare as global?
-def mutation(individual,indexes_aisle, indexes_shelves):
+def mutation(individual,indexes_aisle, indexes_shelves, near_nodes):
 
     # Mutation probability for stops_ugv
-    if rd.random() < 0.1:
+    if rd.random() < mut_prob:
         for i in range(0,len(individual['stops_ugv'])):
             if rd.random()<0.3: # prob mutate this stop
                 new_stop = rd.choice(indexes_aisle)
-                individual['stops_ugv'][i] = new_stop # I guess it can't be by reference if indexes = [0,1,2,3,4,5...]
+                individual['stops_ugv'][i] = new_stop 
+                individual['shelves_uav'][i] = rd_shelves(near_nodes[new_stop]) # I don't think there is any reference problem, but I didn't test it out
 
     # Mutation probability for shelves_uav
-    if rd.random() < 0.1:
-        for i in range(0,len(individual['shelves_uav'])):
+    if rd.random() < mut_prob:
+        for i in range(0,len(individual['stops_ugv'])):
             if rd.random()<0.2: # prob mutate this stop
                 for j in range(0,len(individual['shelves_uav'][i])):
                     if rd.random()<0.3: # prob mutate this shelf
-                        new_shelve = rd.choice(indexes_shelves)
+                        index_stop = individual['stops_ugv'][i]
+                        if (near_nodes[index_stop] != []):
+                            new_shelve = rd.choice(near_nodes[index_stop])
+                        else:
+                            new_shelve = -1
                         individual['shelves_uav'][i][j] = new_shelve # I guess it can't be by reference if indexes = [0,1,2,3,4,5...]
 
 
@@ -316,10 +325,15 @@ for i in range(0,50):
 # Creating the region for each node
 near_nodes = []
 for node in grafo.nodes():
-    near_nodes_x_y = list(nx.single_source_shortest_path_length(grafo,node,4).keys())    
+    near_nodes_x_y = list(nx.single_source_shortest_path_length(grafo,node,region_near).keys())    
     near_nodes.append([grafo.nodes[n]['index'] for n in near_nodes_x_y if grafo.nodes[n]['reward_est'] == 1])
 
-#print(teste2.keys())
+#near_nodes_compare = []
+#for node in grafo.nodes():
+#    near_nodes_x_y = list(nx.single_source_shortest_path_length(grafo,node,region_near).keys())    
+#    near_nodes_compare.append([grafo.nodes[n]['index'] for n in near_nodes_x_y if grafo.nodes[n]['reward_est'] == 1])
+
+#print(near_nodes)
 
 #print(indexes_shelves)
 #print("################")
@@ -337,7 +351,7 @@ media = [np.mean(list_fitness)]
 
 
 # Starting evolution
-for gen in range(0,20):
+for gen in range(0,n_generation):
     print(gen)   
     filhos = []    
 
@@ -352,8 +366,8 @@ for gen in range(0,20):
         off1, off2 = crossover_uniform([parent1,parent2])
 
         # Mutation
-        mutation(off1,indexes_aisle,indexes_shelves)
-        mutation(off2,indexes_aisle,indexes_shelves)
+        mutation(off1,indexes_aisle,indexes_shelves, near_nodes)
+        mutation(off2,indexes_aisle,indexes_shelves, near_nodes)
 
         # Append to total offspring
         offspring.append(off1)
@@ -367,6 +381,8 @@ for gen in range(0,20):
     list_fitness = fitness_all(pop,graph_dict, graph_ground, graph_aerial) # Evaluating whole population
     best_per_generation.append(max(list_fitness))
     media.append(np.mean(list_fitness)) 
+
+#print(near_nodes)
 
 plt.plot(media, label='Average per generation')
 plt.plot(best_per_generation, label='Best individual per generation')
