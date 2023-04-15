@@ -9,16 +9,17 @@ import heapq # For selecting n best
 # TODO instead of using index, use x,y directly?
 
 n_stops = 5
-max_shelves_per_stop = 8
+max_shelves_per_stop = 6
 n_row = 16
 n_col = 16
 pop_size = 100
-mut_prob = 0.1
+mut_prob = 0.2
 n_generation = 100
 n_tournament = 3
 budget_ground = 200
 budget_aerial = 60
-region_near = 4
+region_near = 3
+shelf_prob = 0.6
 
 # Transforming graph from nx to dictionary
 def graph_to_dict(grafo_org):
@@ -136,13 +137,21 @@ individual_ex2 = {
     "fitness": 9
 }
 
-# Uni. randomly decides shelves to be visited - several ways to do it
+# Uni. randomly decides shelves to be visited in a stop point - several ways to do it
 # This one picks uni randomly, another way is picking uni rand from the neighbors
 def rd_shelves(near_nodes):
+    shelves_selected = []
     if len(near_nodes) >= max_shelves_per_stop:
-        return rd.sample(near_nodes,max_shelves_per_stop)
-    else:
-        return rd.sample(near_nodes,len(near_nodes)) + [-1 for i in range(0, (max_shelves_per_stop - len(near_nodes)))]
+        shelves_selected = rd.sample(near_nodes,max_shelves_per_stop)
+    else: 
+        shelves_selected = rd.sample(near_nodes,len(near_nodes)) + [-1 for i in range(0, (max_shelves_per_stop - len(near_nodes)))]
+
+    # Taking out some shelves uni. rand.
+    for i in range(0,len(shelves_selected)):
+        if (rd.random() < shelf_prob):
+            shelves_selected[i] = -1
+    
+    return shelves_selected
 
 # Creates uniformly randomly a individual (solution)
 def random_ind(indexes_shelves, indexes_aisle, near_nodes):
@@ -187,6 +196,7 @@ def fitness(individual, graph_dict, graph_ground, graph_aerial):
         fit = fit/10
 
     individual['fitness'] = fit
+
     return fit
 
 def fitness_all(population,graph_dict, graph_ground, graph_aerial):
@@ -263,7 +273,7 @@ def crossover_uniform(parents):
 def mutation(individual,indexes_aisle, indexes_shelves, near_nodes):
 
     # Mutation probability for stops_ugv
-    if rd.random() < mut_prob:
+    if rd.random() < 0.1:
         for i in range(0,len(individual['stops_ugv'])):
             if rd.random()<0.3: # prob mutate this stop
                 new_stop = rd.choice(indexes_aisle)
@@ -273,15 +283,20 @@ def mutation(individual,indexes_aisle, indexes_shelves, near_nodes):
     # Mutation probability for shelves_uav
     if rd.random() < mut_prob:
         for i in range(0,len(individual['stops_ugv'])):
-            if rd.random()<0.2: # prob mutate this stop
+            if rd.random()<0.3: # prob mutate this stop
                 for j in range(0,len(individual['shelves_uav'][i])):
                     if rd.random()<0.3: # prob mutate this shelf
-                        index_stop = individual['stops_ugv'][i]
-                        if (near_nodes[index_stop] != []):
-                            new_shelve = rd.choice(near_nodes[index_stop])
+                        if rd.random()<0.5:
+                            index_stop = individual['stops_ugv'][i]
+                            if (near_nodes[index_stop] != []):
+                                new_shelve = rd.choice(near_nodes[index_stop])
+                            else:
+                                new_shelve = -1
+                            individual['shelves_uav'][i][j] = new_shelve # I guess it can't be by reference if indexes = [0,1,2,3,4,5...]
                         else:
                             new_shelve = -1
-                        individual['shelves_uav'][i][j] = new_shelve # I guess it can't be by reference if indexes = [0,1,2,3,4,5...]
+                            individual['shelves_uav'][i][j] = new_shelve 
+
 
 
 # Manual copy of one individual (should be faster than deepcopy)
@@ -349,6 +364,7 @@ best_per_generation = [max(list_fitness)]
 media = [np.mean(list_fitness)]
 #print(pop)
 
+print(pop)
 
 # Starting evolution
 for gen in range(0,n_generation):
