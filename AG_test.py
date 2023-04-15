@@ -13,7 +13,8 @@ max_shelves_per_stop = 6
 n_row = 16
 n_col = 16
 pop_size = 100
-mut_prob = 0.2
+mut_prob_ugv = 0.1
+mut_prob_uav = 0.2
 n_generation = 100
 n_tournament = 3
 budget_ground = 200
@@ -273,7 +274,7 @@ def crossover_uniform(parents):
 def mutation(individual,indexes_aisle, indexes_shelves, near_nodes):
 
     # Mutation probability for stops_ugv
-    if rd.random() < 0.1:
+    if rd.random() < mut_prob_ugv:
         for i in range(0,len(individual['stops_ugv'])):
             if rd.random()<0.3: # prob mutate this stop
                 new_stop = rd.choice(indexes_aisle)
@@ -281,7 +282,7 @@ def mutation(individual,indexes_aisle, indexes_shelves, near_nodes):
                 individual['shelves_uav'][i] = rd_shelves(near_nodes[new_stop]) # I don't think there is any reference problem, but I didn't test it out
 
     # Mutation probability for shelves_uav
-    if rd.random() < mut_prob:
+    if rd.random() < mut_prob_uav:
         for i in range(0,len(individual['stops_ugv'])):
             if rd.random()<0.3: # prob mutate this stop
                 for j in range(0,len(individual['shelves_uav'][i])):
