@@ -12,10 +12,11 @@ n_stops = 5
 max_shelves_per_stop = 6
 n_row = 16
 n_col = 16
+n_nodes = n_row*n_col
 pop_size = 100
 mut_prob_ugv = 0.1
 mut_prob_uav = 0.2
-n_generation = 100
+n_generation = 200
 n_tournament = 3
 budget_ground = 200
 budget_aerial = 60
@@ -154,12 +155,30 @@ def rd_shelves(near_nodes):
     
     return shelves_selected
 
+# Decides uni rand which neighbor node it will go
+def rd_shelves_neighbors(stop):
+    initial_path = []
+    previous_node_index = stop # Stop is integer, so no reference
+    for i in range(0,max_shelves_per_stop):
+        node = rd.choice(neighbors_list[previous_node_index])
+        previous_node_index = graph_aerial.nodes[node]['index']        
+        initial_path.append(previous_node_index)
+    
+    # Filtering to only desired shelves
+    shelves_selected = [n for n in initial_path if graph_dict[n]['reward_est'] > 0]
+
+    if shelves_selected == []:
+        shelves_selected.append(-1)
+
+    return shelves_selected
+
 # Creates uniformly randomly a individual (solution)
 def random_ind(indexes_shelves, indexes_aisle, near_nodes):
     stops = rd.sample(indexes_aisle,n_stops)
     shelves = []
     for i in range(n_stops):
-        shelves.append(rd_shelves(near_nodes[stops[i]]))
+        #shelves.append(rd_shelves(near_nodes[stops[i]])) old way
+        shelves.append(rd_shelves_neighbors(stops[i]))
 
     individual = {
         "stops_ugv": stops,
@@ -279,7 +298,7 @@ def mutation(individual,indexes_aisle, indexes_shelves, near_nodes):
             if rd.random()<0.3: # prob mutate this stop
                 new_stop = rd.choice(indexes_aisle)
                 individual['stops_ugv'][i] = new_stop 
-                individual['shelves_uav'][i] = rd_shelves(near_nodes[new_stop]) # I don't think there is any reference problem, but I didn't test it out
+                individual['shelves_uav'][i] = rd_shelves_neighbors(new_stop) # I don't think there is any reference problem, but I didn't test it out
 
     # Mutation probability for shelves_uav
     if rd.random() < mut_prob_uav:
@@ -332,6 +351,9 @@ graph_dict = graph_to_dict(graph_ground)
 # Taking useful information
 shelves_list = list(filter(lambda x: x['estante'] == 1, graph_dict))
 indexes_shelves = [x['index'] for x in shelves_list if x['reward_est'] > 0]
+neighbors_list = []
+for node in graph_aerial.nodes():
+    neighbors_list.append([n for n in graph_aerial.neighbors(node)])
 
 # Appending "virtual" nodes -1, to represent empty genes so we can have a fix shelves stop but with less real stops
 # Those nodes will have a value (x,y) = empty = []
@@ -344,18 +366,9 @@ for node in grafo.nodes():
     near_nodes_x_y = list(nx.single_source_shortest_path_length(grafo,node,region_near).keys())    
     near_nodes.append([grafo.nodes[n]['index'] for n in near_nodes_x_y if grafo.nodes[n]['reward_est'] == 1])
 
-#near_nodes_compare = []
-#for node in grafo.nodes():
-#    near_nodes_x_y = list(nx.single_source_shortest_path_length(grafo,node,region_near).keys())    
-#    near_nodes_compare.append([grafo.nodes[n]['index'] for n in near_nodes_x_y if grafo.nodes[n]['reward_est'] == 1])
-
-#print(near_nodes)
-
-#print(indexes_shelves)
-#print("################")
 aisle_list = list(filter(lambda x: x['estante'] != 1, graph_dict))
 indexes_aisle = [x['index'] for x in aisle_list]
-#print(indexes_aisle)
+
 ### Starting AG ###
 
 # Creating population
@@ -363,9 +376,6 @@ pop = [random_ind(indexes_shelves, indexes_aisle, near_nodes) for i in range(0,p
 list_fitness = fitness_all(pop,graph_dict, graph_ground, graph_aerial)
 best_per_generation = [max(list_fitness)]
 media = [np.mean(list_fitness)]
-#print(pop)
-
-print(pop)
 
 # Starting evolution
 for gen in range(0,n_generation):
