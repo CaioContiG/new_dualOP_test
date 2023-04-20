@@ -7,6 +7,14 @@ from itertools import chain # For unnest list
 import heapq # For selecting n best
 
 # TODO instead of using index, use x,y directly?
+# TODO stops can be in the same point, correct that
+# TODO adicionar correção?
+# TODO adicionar distância máxima que o UAV pode se distanciar do ponto de parada?
+# TODO verificar se estantes visitadas está correspondente ao fitness
+# Diminuir edges_aerial, estreitar arestas
+# Talvez ao invés de trocar por um vizinho na mutação, refazer a ordem
+# printar o budget usado, ver se está condizente
+# Adicionar elitismo
 
 n_stops = 5
 max_shelves_per_stop = 6
@@ -16,7 +24,7 @@ n_nodes = n_row*n_col
 pop_size = 100
 mut_prob_ugv = 0.1
 mut_prob_uav = 0.2
-n_generation = 200
+n_generation = 100
 n_tournament = 3
 budget_ground = 200
 budget_aerial = 60
@@ -211,9 +219,9 @@ def fitness(individual, graph_dict, graph_ground, graph_aerial):
 
     # Setting fitness
     if (bud_aer > budget_aerial) and (bud_gr > budget_ground):
-        fit = fit/20
+        fit = 3
     elif (bud_aer > budget_aerial) or (bud_gr > budget_ground):
-        fit = fit/10
+        fit = 5
 
     individual['fitness'] = fit
 
@@ -306,10 +314,15 @@ def mutation(individual,indexes_aisle, indexes_shelves, near_nodes):
             if rd.random()<0.3: # prob mutate this stop
                 for j in range(0,len(individual['shelves_uav'][i])):
                     if rd.random()<0.3: # prob mutate this shelf
-                        if rd.random()<0.5:
-                            index_stop = individual['stops_ugv'][i]
-                            if (near_nodes[index_stop] != []):
-                                new_shelve = rd.choice(near_nodes[index_stop])
+                        if rd.random()<0.7:
+                            index_shelf = individual['shelves_uav'][i][j]
+                            if neighbors_list_shelves[index_shelf]  != []:
+                                new_shelve_x_y = rd.choice(neighbors_list_shelves[index_shelf])   
+                                new_shelve = graph_aerial.nodes[new_shelve_x_y]['index']                             
+                            # Old with near nodes
+                            #index_stop = individual['stops_ugv'][i]
+                            #if (near_nodes[index_stop] != []):
+                            #    new_shelve = rd.choice(near_nodes[index_stop])
                             else:
                                 new_shelve = -1
                             individual['shelves_uav'][i][j] = new_shelve # I guess it can't be by reference if indexes = [0,1,2,3,4,5...]
@@ -352,8 +365,10 @@ graph_dict = graph_to_dict(graph_ground)
 shelves_list = list(filter(lambda x: x['estante'] == 1, graph_dict))
 indexes_shelves = [x['index'] for x in shelves_list if x['reward_est'] > 0]
 neighbors_list = []
+neighbors_list_shelves = []
 for node in graph_aerial.nodes():
     neighbors_list.append([n for n in graph_aerial.neighbors(node)])
+    neighbors_list_shelves.append([n for n in graph_aerial.neighbors(node) if graph_aerial.nodes[n]['reward_est'] > 0])
 
 # Appending "virtual" nodes -1, to represent empty genes so we can have a fix shelves stop but with less real stops
 # Those nodes will have a value (x,y) = empty = []
@@ -376,6 +391,7 @@ pop = [random_ind(indexes_shelves, indexes_aisle, near_nodes) for i in range(0,p
 list_fitness = fitness_all(pop,graph_dict, graph_ground, graph_aerial)
 best_per_generation = [max(list_fitness)]
 media = [np.mean(list_fitness)]
+best_ind = pop[list_fitness.index(max(list_fitness))] 
 
 # Starting evolution
 for gen in range(0,n_generation):
@@ -401,17 +417,29 @@ for gen in range(0,n_generation):
         offspring.append(off2)
     
     # Creating new population (just coping all offspring)
-    # Maybe add elitism
     pop = [manual_copy(x) for x in offspring]
     
+
     # TODO guardar o melhor de todas populações
     list_fitness = fitness_all(pop,graph_dict, graph_ground, graph_aerial) # Evaluating whole population
+    
+    # Elitism
+    #TODO I'm substituting for the first individual of the pop, no matter what. Maybe change that?7
+    best_local = pop[list_fitness.index(max(list_fitness))]  
+    if fitness(best_local,graph_dict,graph_ground,graph_aerial) > fitness(best_ind,graph_dict,graph_ground,graph_aerial):
+        best_ind = manual_copy(best_local)
+        pop[0] = manual_copy(best_local)
+
+    
+    
     best_per_generation.append(max(list_fitness))
-    media.append(np.mean(list_fitness)) 
+    media.append(np.mean(list_fitness))
+
+
 
 #print(near_nodes)
 
-plt.plot(media, label='Average per generation')
+plt.plot(media[2:], label='Average per generation')
 plt.plot(best_per_generation, label='Best individual per generation')
 plt.legend()
 plt.show()
@@ -503,3 +531,5 @@ for i in range(len(best_all['stops_ugv'])):
 
 plt.show()
 print(best_all['fitness'])
+print(calc_bud_aerial(graph_dict,graph_aerial,best_all))
+print(calc_bud_ground(graph_dict,graph_ground,best_all))
