@@ -24,7 +24,7 @@ n_nodes = n_row*n_col
 pop_size = 100
 mut_prob_ugv = 0.1
 mut_prob_uav = 0.2
-n_generation = 100
+n_generation = 500
 n_tournament = 3
 budget_ground = 200
 budget_aerial = 60
@@ -58,7 +58,7 @@ def add_edges_aerial(grafo, rows, cols):
                             a = np.array((row, col))
                             b = np.array((j,i))
                             distancia = np.linalg.norm(a-b) 
-                            if distancia < 4.4:
+                            if distancia < 3:
                                 grafo.add_edge((col, row), (i, j), budget=distancia)
 
 # Removing edges from shelves (for UGV)
