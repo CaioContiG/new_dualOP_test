@@ -24,7 +24,7 @@ n_nodes = n_row*n_col
 pop_size = 100
 mut_prob_ugv = 0.1
 mut_prob_uav = 0.2
-n_generation = 500
+n_generation = 200
 n_tournament = 3
 budget_ground = 200
 budget_aerial = 60
@@ -315,9 +315,12 @@ def mutation(individual,indexes_aisle, indexes_shelves, near_nodes):
                 for j in range(0,len(individual['shelves_uav'][i])):
                     if rd.random()<0.3: # prob mutate this shelf
                         if rd.random()<0.7:
-                            index_shelf = individual['shelves_uav'][i][j]
-                            if neighbors_list_shelves[index_shelf]  != []:
-                                new_shelve_x_y = rd.choice(neighbors_list_shelves[index_shelf])   
+                            if j == 0:
+                                index_shelf_before = individual['stops_ugv'][i]
+                            else:
+                                index_shelf_before = individual['shelves_uav'][i][j-1]
+                            if neighbors_list_shelves[index_shelf_before]  != []:
+                                new_shelve_x_y = rd.choice(neighbors_list_shelves[index_shelf_before])   
                                 new_shelve = graph_aerial.nodes[new_shelve_x_y]['index']                             
                             # Old with near nodes
                             #index_stop = individual['stops_ugv'][i]
